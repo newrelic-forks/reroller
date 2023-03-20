@@ -1,7 +1,7 @@
 package ghcr
 
 import (
-	"roob.re/reroller/registry/docker"
+	"github.com/newrelic-forks/reroller/src/registry/docker"
 )
 
 const (

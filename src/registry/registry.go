@@ -2,11 +2,12 @@ package registry
 
 import (
 	"errors"
-	"roob.re/reroller/registry/docker"
-	"roob.re/reroller/registry/gcr"
-	"roob.re/reroller/registry/ghcr"
-	"roob.re/reroller/registry/quay"
 	"strings"
+
+	"github.com/newrelic-forks/reroller/src/registry/docker"
+	"github.com/newrelic-forks/reroller/src/registry/gcr"
+	"github.com/newrelic-forks/reroller/src/registry/ghcr"
+	"github.com/newrelic-forks/reroller/src/registry/quay"
 )
 
 func ImageDigests(image string) ([]string, error) {

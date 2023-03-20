@@ -1,14 +1,16 @@
 package main
 
 import (
+	"os"
+	"path"
+	"strings"
+	"time"
+
+	reroller "github.com/newrelic-forks/reroller/src"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"os"
-	"path"
-	"roob.re/reroller"
-	"strings"
-	"time"
 )
 
 const hourFmt = "15:04"

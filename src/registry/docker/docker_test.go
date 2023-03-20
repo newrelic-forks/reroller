@@ -3,8 +3,8 @@ package docker_test
 import (
 	"testing"
 
+	"github.com/newrelic-forks/reroller/src/registry/docker"
 	"github.com/stretchr/testify/require"
-	"roob.re/reroller/registry/docker"
 )
 
 func Test_Dockerhub(t *testing.T) {

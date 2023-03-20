@@ -3,16 +3,17 @@ package reroller
 import (
 	"context"
 	"errors"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/newrelic-forks/reroller/src/registry"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"roob.re/reroller/registry"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const rerollerAnnotation = "reroller.roob.re/reroll"

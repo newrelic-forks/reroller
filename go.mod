@@ -1,4 +1,4 @@
-module roob.re/reroller
+module github.com/newrelic-forks/reroller
 
 go 1.20
 
