@@ -118,13 +118,13 @@ func ociDigests(req *http.Request) ([]string, error) {
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
+		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
 	indexResp := &IndexResp{}
 
 	if err := json.Unmarshal(body, indexResp); err != nil {
-		return nil, fmt.Errorf("reading response: %w", err)
+		return nil, fmt.Errorf("decoding response body: %w", err)
 	}
 
 	digests := []string{}
