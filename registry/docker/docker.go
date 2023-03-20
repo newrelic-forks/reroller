@@ -19,8 +19,6 @@ func DockerLikeImageInfo(baseUrl string) func(image, tag string) ([]string, erro
 	baseUrl = strings.Trim(baseUrl, "/")
 
 	return func(image, tag string) ([]string, error) {
-		digests := make([]string, 0, 2)
-
 		manifestsUrl := fmt.Sprintf(baseUrl+"/%s/manifests/%s", image, tag)
 		headRsp, err := http.Head(manifestsUrl)
 		if err != nil {
@@ -50,9 +48,18 @@ func DockerLikeImageInfo(baseUrl string) func(image, tag string) ([]string, erro
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
 
+		digests := []string{}
+
+		retDigests, err := ociDigests(req)
+		if err != nil {
+			return nil, fmt.Errorf("getting oci image digests from docker: %w", err)
+		}
+
+		digests = append(digests, retDigests...)
+
 		// Query the manifest list digest
 		req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.list.v2+json")
-		retDigests, err := dockerContentDigest(req)
+		retDigests, err = dockerContentDigest(req)
 		if err != nil {
 			return nil, fmt.Errorf("getting manifest list from docker: %w", err)
 		}
@@ -63,10 +70,14 @@ func DockerLikeImageInfo(baseUrl string) func(image, tag string) ([]string, erro
 		req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
 		retDigests, err = dockerContentDigest(req)
 		if err != nil {
-			return nil, fmt.Errorf("getting manifest list from docker: %w", err)
+			return nil, fmt.Errorf("getting manifest from docker: %w", err)
 		}
 
 		digests = append(digests, retDigests...)
+
+		if len(digests) == 0 {
+			return nil, fmt.Errorf("getting images digests for the docker image %s:%s", image, tag)
+		}
 
 		return digests, nil
 	}
@@ -83,10 +94,46 @@ func dockerContentDigest(req *http.Request) ([]string, error) {
 
 	digest, found := resp.Header["Docker-Content-Digest"]
 	if !found {
-		return nil, fmt.Errorf("docker API did not return a content digest for this image")
+		// OCI images will not respond with the list of digest
+		return nil, nil
 	}
 
 	return digest, nil
+}
+
+func ociDigests(req *http.Request) ([]string, error) {
+	// https://github.com/moby/buildkit/issues/2251
+	acceptHeader := "application/vnd.oci.image.index.v1+json"
+	req.Header.Set("Accept", "application/vnd.oci.image.index.v1+json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("querying dockerhub tags endpoint: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.Header.Get("Content-Type") != acceptHeader {
+		return nil, nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	indexResp := &IndexResp{}
+
+	if err := json.Unmarshal(body, indexResp); err != nil {
+		return nil, fmt.Errorf("reading response: %w", err)
+	}
+
+	digests := []string{}
+
+	for _, manifest := range indexResp.Manifests {
+		digests = append(digests, manifest.Digest)
+	}
+
+	return digests, nil
 }
 
 func authUrl(wwwAuthenticate string) (*url.URL, error) {
