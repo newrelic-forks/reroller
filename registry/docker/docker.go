@@ -7,20 +7,25 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
 const (
 	Registry = "docker.io"
 	BaseUrl  = "https://index.docker.io/v2"
 	AuthUrl  = "https://auth.docker.io"
+
+	dockerManifest     = "application/vnd.docker.distribution.manifest.v2+json"
+	dockerManifestList = "application/vnd.docker.distribution.manifest.list.v2+json"
+	// Buildkit uses a image index more details-> https://github.com/moby/buildkit/issues/2251
+	ociIndex = "application/vnd.oci.image.index.v1+json"
 )
 
 func DockerLikeImageInfo(baseUrl string) func(image, tag string) ([]string, error) {
 	baseUrl = strings.Trim(baseUrl, "/")
 
 	return func(image, tag string) ([]string, error) {
-		digests := make([]string, 0, 2)
-
 		manifestsUrl := fmt.Sprintf(baseUrl+"/%s/manifests/%s", image, tag)
 		headRsp, err := http.Head(manifestsUrl)
 		if err != nil {
@@ -50,9 +55,19 @@ func DockerLikeImageInfo(baseUrl string) func(image, tag string) ([]string, erro
 			req.Header.Set("Authorization", "Bearer "+token)
 		}
 
+		digests := []string{}
+
+		req.Header.Set("Accept", ociIndex)
+		retDigests, err := ociDigests(req)
+		if err != nil {
+			return nil, fmt.Errorf("getting oci image digests from docker: %w", err)
+		}
+
+		digests = append(digests, retDigests...)
+
 		// Query the manifest list digest
-		req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.list.v2+json")
-		retDigests, err := dockerContentDigest(req)
+		req.Header.Set("Accept", dockerManifestList)
+		retDigests, err = dockerContentDigest(req)
 		if err != nil {
 			return nil, fmt.Errorf("getting manifest list from docker: %w", err)
 		}
@@ -60,7 +75,7 @@ func DockerLikeImageInfo(baseUrl string) func(image, tag string) ([]string, erro
 		digests = append(digests, retDigests...)
 
 		// Query the v2 manifest digest
-		req.Header.Set("Accept", "application/vnd.docker.distribution.manifest.v2+json")
+		req.Header.Set("Accept", dockerManifest)
 		retDigests, err = dockerContentDigest(req)
 		if err != nil {
 			return nil, fmt.Errorf("getting manifest list from docker: %w", err)
@@ -81,12 +96,35 @@ func dockerContentDigest(req *http.Request) ([]string, error) {
 	_, _ = io.Copy(io.Discard, resp.Body)
 	_ = resp.Body.Close()
 
-	digest, found := resp.Header["Docker-Content-Digest"]
-	if !found {
-		return nil, fmt.Errorf("docker API did not return a content digest for this image")
+	return resp.Header["Docker-Content-Digest"], nil
+}
+
+func ociDigests(req *http.Request) ([]string, error) {
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("querying dockerhub tags endpoint: %w", err)
 	}
 
-	return digest, nil
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	indexResp := &v1.Index{}
+
+	if err := json.Unmarshal(body, indexResp); err != nil {
+		return nil, fmt.Errorf("decoding response body: %w", err)
+	}
+
+	digests := []string{}
+
+	for _, manifest := range indexResp.Manifests {
+		digests = append(digests, manifest.Digest.String())
+	}
+
+	return digests, nil
 }
 
 func authUrl(wwwAuthenticate string) (*url.URL, error) {
