@@ -9,7 +9,7 @@ RUN go mod download
 COPY . ./
 RUN go build -o /reroller ./cmd
 
-FROM alpine:latest
+FROM alpine:3.18.3
 
 RUN apk add tini
 COPY --from=builder /reroller /usr/local/bin/reroller
